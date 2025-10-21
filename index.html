@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SF Film Locations - Interactive Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+
+        #container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        #map-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 10px;
+        }
+
+        #controls {
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            height: fit-content;
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 24px;
+            color: #333;
+        }
+
+        h2 {
+            font-size: 16px;
+            margin: 20px 0 10px 0;
+            color: #555;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .range-value {
+            display: inline-block;
+            min-width: 60px;
+            text-align: right;
+            font-weight: bold;
+            color: #333;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .circle-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            max-width: 300px;
+            line-height: 1.5;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .tooltip strong {
+            color: #4CAF50;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .stats div {
+            margin: 5px 0;
+        }
+
+        #year-range-display {
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            margin-top: 5px;
+        }
+
+        .circle-control {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="map-container">
+            <h1>San Francisco Film Locations</h1>
+            <div id="map"></div>
+        </div>
+
+        <div id="controls">
+            <h2>Query Circles</h2>
+
+            <div class="control-group">
+                <div class="circle-control">
+                    <label>Circle A Radius (km)</label>
+                    <span class="range-value" id="radiusA-value">1.0</span>
+                </div>
+                <input type="range" id="radiusA" min="0.1" max="3" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <div class="circle-control">
+                    <label>Circle B Radius (km)</label>
+                    <span class="range-value" id="radiusB-value">1.0</span>
+                </div>
+                <input type="range" id="radiusB" min="0.1" max="3" step="0.1" value="1.0">
+            </div>
+
+            <h2>Additional Filters</h2>
+
+            <div class="control-group">
+                <label>Release Year Range</label>
+                <div class="circle-control">
+                    <span id="year-min-label">1940</span>
+                    <span id="year-max-label">2025</span>
+                </div>
+                <input type="range" id="yearMin" min="1940" max="2025" step="1" value="1940">
+                <input type="range" id="yearMax" min="1940" max="2025" step="1" value="2025">
+                <div id="year-range-display">1940 - 2025</div>
+            </div>
+
+            <div class="control-group">
+                <label>Director</label>
+                <select id="directorFilter">
+                    <option value="all">All Directors</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Neighborhood</label>
+                <select id="neighborhoodFilter">
+                    <option value="all">All Neighborhoods</option>
+                </select>
+            </div>
+
+            <button id="resetButton">Reset All Filters</button>
+
+            <div class="stats">
+                <div><strong>Total Locations:</strong> <span id="totalCount">0</span></div>
+                <div><strong>Visible Locations:</strong> <span id="visibleCount">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
