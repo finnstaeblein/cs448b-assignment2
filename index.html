@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>San Francisco Film Locations</title>
+
+    <!-- load D3.js v7 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+        /* main styling for the page */
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: lightgray;
+        }
+
+        /* flexbox container to put map and controls side-by-side */
+        #container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /*  map container styling */
+        #map-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 10px;
+        }
+
+        /* controls panel on the right side */
+        #controls {
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            height: fit-content;
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 24px;
+            color: black;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin: 20px 0 10px 0;
+            border-bottom: 2px solid black;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+            font-weight: 500;
+            color: dimgray;
+        }
+
+        /* dual-handle range slider styling */
+        .range-slider-container {
+            position: relative;
+            height: 40px;
+            margin: 15px 0;
+        }
+
+        /* showing the selected range of the slider*/
+        .range-track {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            height: 6px;
+            background: lightgray;
+            border-radius: 3px;
+            pointer-events: none;
+        }
+
+        /* Highlighted portion of the slider */
+        .range-track::after {
+            content: '';
+            position: absolute;
+            height: 100%;
+            background: green;
+            border-radius: 3px;
+            left: var(--range-left, 0%);
+            width: var(--range-width, 100%);
+        }
+
+        /* stack both range inputs on top of each other */
+        .range-input {
+            position: absolute;
+            width: 100%;
+            height: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            margin: 0;
+            pointer-events: none;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        /* make thumb grabbable */
+        .range-input::-webkit-slider-thumb {
+            pointer-events: auto;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: green;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .range-input::-moz-range-thumb {
+            pointer-events: auto;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: green;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* remove default track styling */
+        .range-input::-webkit-slider-runnable-track {
+            height: 6px;
+            background: transparent;
+        }
+
+        .range-input::-moz-range-track {
+            height: 6px;
+            background: transparent;
+        }
+
+        /* reg slider styling (for radius sliders) */
+        input[type="range"]:not(.range-input) {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        /* display value next to slider labels */
+        .range-value {
+            display: inline-block;
+            min-width: 60px;
+            text-align: right;
+            font-weight: bold;
+            color: darkgray;
+        }
+
+        /* dropwdown styling */
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* reset button styling */
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: green;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: darkgreen;
+        }
+
+        /* labels for circles on the map */
+        .circle-label {
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+            pointer-events: none;  /* Don't block mouse events */
+        }
+
+        /* Tooltip that appears when hovering over points */
+        /* Initially hidden */
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;  /* Tooltip shouldn't block clicks */
+            max-width: 300px;
+            line-height: 1.5;
+            display: none;
+            z-index: 1000;  /* Make sure it appears on top */
+        }
+
+        .tooltip.visible {
+            display: block;
+        }
+
+        .tooltip strong {
+            color: green;
+        }
+
+        /* Stats display at bottom of controls */
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: whitesmoke;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .stats div {
+            margin: 5px 0;
+        }
+
+        /* current year range selection */
+        #year-range-display {
+            text-align: center;
+            font-weight: bold;
+            color: black;
+            margin-top: 5px;
+        }
+
+
+    </style>
+</head>
+<body>
+    <!-- container with map and controls -->
+    <div id="container">
+        <!-- put map on left side -->
+        <div id="map-container">
+            <h1>San Francisco Film Locations</h1>
+            <!-- SVG map gets inserted here by D3 -->
+            <div id="map"></div>
+        </div>
+
+        <!-- control panel (on right side)-->
+        <div id="controls">
+            <h2>Query Circles</h2>
+
+            <!-- circle A radius control -->
+            <div class="control-group">
+                <label>Circle A Radius</label>
+                <input type="range" id="radiusA" min="10" max="300" step="5" value="50">
+            </div>
+
+            <!-- circle B radius control -->
+            <div class="control-group">
+                <label>Circle B Radius</label>
+                <input type="range" id="radiusB" min="10" max="300" step="5" value="50">
+            </div>
+
+            <h2>Additional Filters</h2>
+
+            <!-- Year range filter (jsing dual-handle slider) -->
+            <div class="control-group">
+                <label>Release Year Range</label>
+                <div id="year-range-display">1915 - 2023</div>
+                <!-- Dual range slider container -->
+                <div class="range-slider-container">
+                    <div class="range-track"></div>
+                    <input type="range" id="yearMin" min="1915" max="2023" step="1" value="1915" class="range-input range-min">
+                    <input type="range" id="yearMax" min="1915" max="2023" step="1" value="2023" class="range-input range-max">
+                </div>
+            </div>
+
+            <!-- director filter (1st additional filter) -->
+            <div class="control-group">
+                <label>Director</label>
+                <select id="directorFilter">
+                    <option value="all">All Directors</option>
+                    <!-- More options added by JavaScript -->
+                </select>
+            </div>
+
+            <!-- Neigbhorhod filter (2nd additional filter) -->
+            <div class="control-group">
+                <label>Neighborhood</label>
+                <select id="neighborhoodFilter">
+                    <option value="all">All Neighborhoods</option>
+                    <!-- More options added by JavaScript -->
+                </select>
+            </div>
+
+            <!-- reste button to clear all filters -->
+            <button id="resetButton">Reset All Filters</button>
+
+            <!-- statistics -->
+            <div class="stats">
+                <div><strong>Total Locations:</strong> <span id="totalCount">0</span></div>
+                <div><strong>Visible Locations:</strong> <span id="visibleCount">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip element (hidden by default) -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- Load JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
